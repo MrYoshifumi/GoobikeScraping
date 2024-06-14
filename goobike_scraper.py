@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 import requests
@@ -10,19 +11,24 @@ class GoobikeScraper:
 
     def scrape(self):
         # 最初のページの内容を取得して最大ページ数を把握
-        first_page = requests.get(self.base_url + ".html")
-        if first_page.status_code != 200:
-                return f"検索結果の取得に失敗しました。ステータスコード: {first_page.status_code}"
+        response = requests.get(self.base_url + ".html")
+        response.encoding = response.apparent_encoding
         
-        soup = BeautifulSoup(first_page.content, 'html.parser')
-        max_page_num = self.get_max_page_num(soup)
+        if response.status_code != 200:
+            return [f"検索結果の取得に失敗しました。ステータスコード: {response.status_code}"]
         
-        # 各ページをループしてデータを収集
-        for num in range(1, max_page_num + 1):
-            page_content = self.get_page_content(num)
-            if page_content:
-                self.extract_bike_data(page_content)
+        soup = BeautifulSoup(response.content, 'html.parser')
         
+        # URL不正の場合
+        errorDiv = soup.find('span', class_='sj')
+        if not errorDiv:
+            max_page_num = self.get_max_page_num(soup)
+            # 各ページをループしてデータを収集
+            for num in range(1, max_page_num + 1):
+                page_content = self.get_page_content(num)
+                if page_content:
+                    self.extract_bike_data(page_content)
+
         return self.bikes
 
     def get_max_page_num(self, soup):
@@ -59,18 +65,48 @@ class GoobikeScraper:
         return (f"{data['total_payment']}万円, {data['model_year']}, {data['regist_year']}, {data['distance']}, "
                 f"{data['insurance']}, {data['shop_name']} ({data['shop_addr']})")
 
-# コマンドライン引数のチェック
-if len(sys.argv) != 3:
-    print("使い方: \npython goobike_scraper.py <メーカー> <モデル名（排気量_モデル）>")
-    print("例: ktm 390_duke")
-    sys.exit(1)
+def clear_terminal():
+    # Windowsの場合は 'cls'、それ以外のOSでは 'clear' コマンドを使用
+    os.system('cls' if os.name == 'nt' else 'clear')
 
-# コマンドライン引数からメーカー名と車種名を取得
-manufacturer = sys.argv[1]
-model = sys.argv[2]
+def main():
+    clear_terminal()
 
-scraper = GoobikeScraper(manufacturer, model)
-bike_list = scraper.scrape()
+    manufacturer = input("メーカー: ").lower()
+    model = input("モデル名: ").lower()
+    
+    scraper = GoobikeScraper(manufacturer, model)
+    bike_list = scraper.scrape()
 
-for bike in bike_list:
-    print(bike)
+    if not bike_list:
+        print("結果が見つかりません。\nメーカー名、モデル名を正しく入力してください。")
+        return
+
+    specify_year_flag = input("年式を指定するか (y/n): ").lower()
+    if specify_year_flag in ['y', 'n']:
+        if specify_year_flag == 'y':
+            specified_year = input("年式: ")
+            filtered_bike_list = [bike for bike in bike_list if specified_year in bike]
+            if not filtered_bike_list:
+                print(f"指定された年式 {specified_year} のバイクは見つかりませんでした。")
+                return
+            else:
+                bike_list = filtered_bike_list
+    else:
+        print("y または n を入力してください。")
+        return
+    
+    sort_flag = input("支払総額を昇順で表示するか (y/n): ").lower()
+    if sort_flag in ['y', 'n']:
+        if sort_flag == 'y':
+            bike_list.sort(key=lambda x: int(x.split('万円')[0].replace(',', '')))
+    else:
+        print("y または n を入力してください。")
+        return
+    
+    clear_terminal()
+    for bike in bike_list:
+        print(bike)
+
+if __name__ == "__main__":
+    main()
