@@ -86,7 +86,7 @@ def main():
     if specify_year_flag in ['y', 'n']:
         if specify_year_flag == 'y':
             specified_year = input("年式: ")
-            filtered_bike_list = [bike for bike in bike_list if specified_year in bike]
+            filtered_bike_list = [bike for bike in bike_list if specified_year in bike.split(', ')[1]]
             if not filtered_bike_list:
                 print(f"指定された年式 {specified_year} のバイクは見つかりませんでした。")
                 return
